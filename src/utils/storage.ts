@@ -16,5 +16,3 @@ export const getData = async (key: string) => {
     // error reading value
   }
 };
-
-// export default {storeData, getData};

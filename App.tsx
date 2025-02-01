@@ -1,130 +1,112 @@
-import React, {useState} from 'react';
+import React, {useEffect, useState} from 'react';
+import {ScrollView, StyleSheet, Text, TextInput, View} from 'react-native';
 
-import {
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-} from 'react-native';
-//
+// packages
 import uuid from 'react-native-uuid';
-import CheckBox from '@react-native-community/checkbox';
-// icons
-import Icon from '@react-native-vector-icons/material-icons';
 
-const colors = {
-  task_bg: '#E6F6FF',
-};
+// types
+import {Task} from './src/types';
 
-interface Task {
-  id: string;
-  task: string;
-  isCompleted: boolean;
-}
+// components
+import EachTask from './src/components/Task';
+import Button from './src/components/Button';
+import {getData, storeData} from './src/utils/storage';
 
-const Task: React.FC = ({task, handleChangeStatus, handleDelete}) => {
-  const handleChange = () => {
-    handleChangeStatus(task.id);
-  };
-  return (
-    <Pressable
-      style={styles.task_container}
-      onPress={() => handleChangeStatus(task.id)}>
-      <View style={styles.task_content_container}>
-        {/* <Icon name="delete" size={20} /> */}
-        <CheckBox
-          tintColors={{true: '#4C63B6', false: 'gray'}}
-          value={task.isCompleted}
-          onValueChange={handleChange}
-        />
-        <Text style={task.isCompleted ? styles.is_completed_task : styles.task}>
-          {task.task}
-        </Text>
-        <Icon
-          style={styles.delete_icon}
-          name="delete"
-          size={20}
-          color={'red'}
-          onPress={() => handleDelete(task.id)}
-        />
-      </View>
-    </Pressable>
-  );
-};
+// Todo
+// do sorting new ones add one top
+// completed ones are should go to bottom
+// add error msg (add only unq tasks)
+// increase the size of dlt btn
 
 const App: React.FC = () => {
   const [newTaskText, setNewTaskText] = useState<string>('');
-  const [tasks, setTasks] = useState<Task[]>([
-    {id: '1', task: 'Buy groceries', isCompleted: false},
-    {id: '2', task: 'Complete React project', isCompleted: true},
-    {id: '3', task: 'Go for a run', isCompleted: false},
-    {id: '4', task: 'Read a book', isCompleted: true},
-    {id: '5', task: 'Call mom', isCompleted: false},
-    {id: '6', task: 'Water the plants', isCompleted: true},
-    {id: '7', task: 'Finish TypeScript tutorial', isCompleted: false},
-    {id: '8', task: 'Prepare dinner', isCompleted: true},
-  ]);
+  const [tasks, setTasks] = useState<Task[]>([]);
 
   // add new task
-  const handleAddNew = () => {
+  const handleAddNew = async () => {
     const newTask: Task = {
       id: uuid.v4(),
       task: newTaskText,
       isCompleted: false,
     };
     setNewTaskText('');
-    setTasks(prevValues => [...prevValues, newTask]);
+    const data = [...tasks, newTask];
+    await storeData('todos', data);
+    setTasks(data);
   };
   // remove task from list
-  const handleDelete = (id: string) => {
-    setTasks(prevValue => prevValue.filter(task => task.id !== id));
+  const handleDelete = async (id: string) => {
+    const data = tasks.filter(task => task.id !== id);
+    await storeData('todos', data);
+    setTasks(data);
   };
 
   // change task status
-  const handleChangeStatus = (id: string) => {
-    setTasks(prevValue =>
-      prevValue.map(task => {
-        if (task.id === id) {
-          return {...task, isCompleted: !task.isCompleted};
-        }
-        return task;
-      }),
-    );
+  const handleChangeStatus = async (id: string) => {
+    const data = tasks.map(task => {
+      if (task.id === id) {
+        return {...task, isCompleted: !task.isCompleted};
+      }
+      return task;
+    });
+
+    await storeData('todos', data);
+    setTasks(data);
   };
+
+  // retrieve tasks from local device
+  useEffect(() => {
+    (async () => {
+      // await storeData('todos', tasks);
+      const data = await getData('todos');
+      console.log(data);
+      if (data === null) {
+        setTasks([]);
+      } else {
+        setTasks(data);
+      }
+    })();
+  }, []);
+
+  const isBtnDisabled = newTaskText.trim().length === 0;
 
   return (
     <View style={styles.main_container}>
+      {/* main title */}
       <Text style={styles.main_title}>Todos</Text>
 
       {/* todo input container  */}
-      <Text style={styles.input_title}>
-        Create<Text style={styles.input_sub_title}>Task</Text>
-      </Text>
       <View style={styles.input_container}>
+        <Text style={styles.input_title}>
+          Create<Text style={styles.input_sub_title}>Task</Text>
+        </Text>
         <TextInput
           value={newTaskText}
           onChangeText={setNewTaskText}
           style={styles.text_input}
           placeholder="Whats need to be done?."
         />
-        <Pressable
-          style={styles.primary_btn}
-          android_ripple={{color: '#5a7be8'}}
-          onPress={handleAddNew}>
-          <Text style={styles.primary_btn_text}>Add</Text>
-        </Pressable>
+        <Button
+          disabled={isBtnDisabled}
+          title="Add"
+          handleClick={handleAddNew}
+          isPrimary={true}
+        />
       </View>
 
       {/* list of tasks  */}
-      <Text style={{...styles.input_title, marginBlock: 10}}>
+      <Text style={styles.sub_title}>
         My<Text style={styles.input_sub_title}> Tasks</Text>
       </Text>
+      {/* no tasks  */}
+      {tasks.length === 0 && (
+        <View style={styles.no_task_found}>
+          <Text style={styles.zero_task}>No Tasks found</Text>
+        </View>
+      )}
       <ScrollView style={styles.list_tasks_container}>
-        {/* <CheckBox /> */}
         {tasks.map((task, index) => (
-          <Task
+          <EachTask
             key={index}
             task={task}
             handleChangeStatus={handleChangeStatus}
@@ -145,7 +127,7 @@ const styles = StyleSheet.create({
     marginBlock: 30,
   },
   // input container
-  input_container: {gap: 5, marginBlock: 20},
+  input_container: {gap: 5, marginBlock: 10},
   input_title: {fontSize: 18, fontWeight: 600},
   input_sub_title: {fontWeight: 400},
   text_input: {
@@ -157,82 +139,19 @@ const styles = StyleSheet.create({
     borderStyle: 'solid',
     borderColor: '#E4E7EB',
   },
-
-  list_tasks_container: {
-    // paddingBlock: 10,
-  },
-  task_container: {
-    backgroundColor: colors.task_bg,
-    padding: 15,
-    marginBlock: 3,
-    borderColor: '#096F92',
-    borderLeftWidth: 5,
-    borderRadius: 6,
-  },
-  task_content_container: {
+  sub_title: {fontSize: 18, fontWeight: 600, marginBlock: 10},
+  list_tasks_container: {paddingBottom: 30},
+  no_task_found: {
+    flex: 3,
     display: 'flex',
-    flexDirection: 'row',
+    justifyContent: 'center',
     alignItems: 'center',
-    gap: 5,
   },
-  task: {},
-  is_completed_task: {
-    textDecorationLine: 'line-through',
+  zero_task: {
+    color: '#282828',
+    fontSize: 14,
+    fontWeight: 600,
   },
-  delete_icon: {
-    marginLeft: 'auto',
-  },
-  // ui styles
-
-  primary_btn: {
-    backgroundColor: '#4C63B6',
-    alignSelf: 'flex-end',
-    paddingBlock: 12,
-    paddingInline: 26,
-    borderRadius: 10,
-  },
-  primary_btn_text: {color: '#fff'},
 });
 
 export default App;
-
-// import Icon from '@react-native-vector-icons/fontawesome6';
-// import AsyncStorage from '@react-native-async-storage/async-storage';
-// import {getData,storeData} from './src/utils/storage'
-// concepts
-// input type checkbox, icons, scrollable
-// persistence async storage
-
-// // Retrieve Data from storage
-// useEffect(() => {
-//   // (async () => {
-//   //   const data = await getData('todo');
-//   //   setTasks(data === null ? [] : data);
-//   // })();
-// }, []);
-
-// // save data in device
-// useEffect(() => {
-//   // (async () => {
-//   //   if (tasks.length === 0) return;
-//   //   await storeData('todos', tasks);
-//   //   const x = await getData('todos');
-//   // })();
-// }, [tasks]);
-
-// const storeData = async (key: string, value: any) => {
-//   try {
-//     const data = await JSON.stringify(value);
-//     await AsyncStorage.setItem(key, data);
-//   } catch (e) {
-//     // saving error
-//   }
-// };
-// const getData = async (key: string) => {
-//   try {
-//     const data = await AsyncStorage.getItem(key);
-//     return data == null ? null : JSON.parse(data);
-//   } catch (e) {
-//     // error reading value
-//   }
-// };
